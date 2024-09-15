@@ -1,8 +1,7 @@
 import os
 import smtplib
-from email.mime.text import MIMEText
-
 from datetime import datetime
+from email.mime.text import MIMEText
 from random import choice
 
 from decouple import config
@@ -10,7 +9,7 @@ from pandas import read_csv
 
 sender_adr = config('EMAIL')
 sender_app_password = config('PASSWORD')
-recipient_adr = config('RECIPIENT')
+recipient_adr = ''
 
 
 # make connection
@@ -35,21 +34,25 @@ with open(file="./quotes.txt", mode="r") as file:
     data = file.readlines()
     quotes_list = [quote.strip() for quote in data]
 
+no_birth_day = False
 
-def send_mail_by_day(date_list):
+
+def send_mail_by_day(data_list):
     """checks date and choice random message to send by calling send mail"""
-    for date in date_list:
-        if (datetime.now().weekday() == datetime(date[1], date[2], date[3]).weekday() and
-                datetime.now().month == datetime(date[1], date[2], date[3]).month):
-            index = date[0]
+    global recipient_adr, no_birth_day
+    for data_tuple in data_list:
+        if (datetime.now().day == datetime(data_tuple[1], data_tuple[2], data_tuple[3]).day and
+                datetime.now().month == datetime(data_tuple[1], data_tuple[2], data_tuple[3]).month):
+            index = data_tuple[0]
             name = birthdays_df.iloc[index]['name']
             number = choice([1, 2, 3])
             message = choice(quotes_list)
+            recipient_adr = data_tuple[4]
             with open(file=f"letter_templates/letter_{number}.txt", mode="r") as letter_file:
                 text = letter_file.readlines()
                 new_text = [line.replace('[NAME]', name).replace("[message]", message) for line in text]
             try:
-                os.mkdir("./sent_mails")
+                os.mkdir("./sent_mails")  # to make sent_mails directory, automatically. You can Add it manually.
             except FileExistsError:
                 pass
             except OSError as e:
@@ -59,14 +62,19 @@ def send_mail_by_day(date_list):
                     output_file.writelines(new_text)
             send_mail(message="".join(new_text))
             print(f"Email Sent to {name} Successfully.")
+        else:
+            no_birth_day = True
+
+    if no_birth_day:
+        print("You have not registered a birthday date associated with today's date.")
 
 
 birthdays_df = read_csv("birthdays.csv")
-dates = [(index, row.year, row.month, row.day) for (index, row) in birthdays_df.iterrows()]
+birthday_data_list = [(index, row.year, row.month, row.day, row.email) for (index, row) in birthdays_df.iterrows()]
 
 
 def main():
-    send_mail_by_day(date_list=dates)
+    send_mail_by_day(birthday_data_list)
 
 
 if __name__ == '__main__':
